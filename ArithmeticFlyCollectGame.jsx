@@ -52,7 +52,7 @@ function getResponsiveSize() {
 }
 
 function getHudHeight(size) {
-  return size.mode === "portrait" ? 92 : 70;
+  return size.mode === "portrait" ? 104 : 70;
 }
 
 function makeProblem(level) {
@@ -616,34 +616,35 @@ export default function ArithmeticFlyCollectGame() {
       const hudHeight = getHudHeight(sizeRef.current);
       const doodle = themeRef.current === "doodle";
       const portrait = mode === "portrait";
-      const problemSize = portrait ? 24 : 30;
-      const problemY = portrait ? 12 : 16;
-      const iconY = portrait ? 16 : 22;
-      const scoreY = iconY + 2;
-      const lifeX = portrait ? 108 : 116;
+      const topIconY = portrait ? 16 : 22;
+      const topTextY = topIconY + 2;
+      const lifeX = portrait ? 110 : 116;
+      const problemSize = portrait ? 26 : 30;
+      const problemY = portrait ? 62 : 16;
+      const menuY = portrait ? 15 : 16;
 
       ctx.fillStyle = doodle ? "#181818" : "#050814";
       ctx.fillRect(0, 0, WIDTH, hudHeight);
       if (doodle) {
         roughLine(ctx, 0, hudHeight - 2, WIDTH, hudHeight - 2, "#111111", 5);
-        drawCoin(ctx, 18, iconY);
-        drawPixelText(ctx, String(scoreRef.current), 54, scoreY, 24, "left", "#ffffff");
-        drawHeart(ctx, lifeX, iconY - 2, 2, true);
-        drawPixelText(ctx, String(livesRef.current), lifeX + 38, scoreY, 24, "left", "#ffffff");
+        drawCoin(ctx, 18, topIconY);
+        drawPixelText(ctx, String(scoreRef.current), 54, topTextY, 24, "left", "#ffffff");
+        drawHeart(ctx, lifeX, topIconY - 2, 2, true);
+        drawPixelText(ctx, String(livesRef.current), lifeX + 38, topTextY, 24, "left", "#ffffff");
         drawPixelText(ctx, problemRef.current.text, WIDTH / 2, problemY, problemSize, "center", "#ffe66d");
-        drawPixelText(ctx, "☰", WIDTH - 42, portrait ? 12 : 16, 28, "left", "#ffffff");
+        drawPixelText(ctx, "☰", WIDTH - 42, menuY, 28, "left", "#ffffff");
         return;
       }
 
       ctx.strokeStyle = "#00e5ff";
       ctx.lineWidth = 4;
       ctx.strokeRect(0, 0, WIDTH, hudHeight);
-      drawCoin(ctx, 18, iconY);
-      drawPixelText(ctx, String(scoreRef.current), 54, scoreY, 24, "left");
-      drawHeart(ctx, lifeX, iconY - 2, 2);
-      drawPixelText(ctx, String(livesRef.current), lifeX + 38, scoreY, 24, "left");
+      drawCoin(ctx, 18, topIconY);
+      drawPixelText(ctx, String(scoreRef.current), 54, topTextY, 24, "left");
+      drawHeart(ctx, lifeX, topIconY - 2, 2);
+      drawPixelText(ctx, String(livesRef.current), lifeX + 38, topTextY, 24, "left");
       drawPixelText(ctx, problemRef.current.text, WIDTH / 2, problemY, problemSize, "center", "#fff04a");
-      drawPixelText(ctx, "☰", WIDTH - 42, portrait ? 12 : 16, 28, "left", "#00e5ff");
+      drawPixelText(ctx, "☰", WIDTH - 42, menuY, 28, "left", "#00e5ff");
     },
     []
   );
@@ -1073,6 +1074,53 @@ export default function ArithmeticFlyCollectGame() {
     buttonClickSound();
   };
 
+  const setCanvasTouchControl = (event, active) => {
+    if (event.pointerType !== "touch" && event.pointerType !== "pen") {
+      return;
+    }
+
+    event.preventDefault();
+    initAudio();
+
+    const { width: WIDTH, height: HEIGHT } = sizeRef.current;
+    const hudHeight = getHudHeight(sizeRef.current);
+    const rect = event.currentTarget.getBoundingClientRect();
+    const scaleX = WIDTH / rect.width;
+    const scaleY = HEIGHT / rect.height;
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
+
+    if (active && event.currentTarget.setPointerCapture) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+
+    if (active && x > WIDTH - 76 && y < hudHeight) {
+      keysRef.current.left = false;
+      keysRef.current.right = false;
+      keysRef.current.turbo = false;
+      keysRef.current.brake = false;
+      openLegend();
+      return;
+    }
+
+    if (active && (statusRef.current === "idle" || statusRef.current === "over")) {
+      restartGame();
+    }
+
+    if (!active || y < hudHeight) {
+      keysRef.current.left = false;
+      keysRef.current.right = false;
+      keysRef.current.turbo = false;
+      keysRef.current.brake = false;
+      return;
+    }
+
+    keysRef.current.left = x < WIDTH * 0.46;
+    keysRef.current.right = x > WIDTH * 0.54;
+    keysRef.current.turbo = y < HEIGHT * 0.48;
+    keysRef.current.brake = y > HEIGHT * 0.78;
+  };
+
   const portraitLayout = canvasSize.mode === "portrait";
   const pageStyle =
     theme === "doodle"
@@ -1154,6 +1202,11 @@ export default function ArithmeticFlyCollectGame() {
             height={canvasSize.height}
             style={styles.canvas}
             onClick={canvasClick}
+            onPointerDown={(event) => setCanvasTouchControl(event, true)}
+            onPointerMove={(event) => setCanvasTouchControl(event, true)}
+            onPointerUp={(event) => setCanvasTouchControl(event, false)}
+            onPointerCancel={(event) => setCanvasTouchControl(event, false)}
+            onPointerLeave={(event) => setCanvasTouchControl(event, false)}
           />
         </div>
       </section>
