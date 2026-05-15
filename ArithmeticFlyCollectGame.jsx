@@ -13,7 +13,7 @@ import {
 const WIDTH = 820;
 const HEIGHT = 560;
 const PORTRAIT_WIDTH = 420;
-const PORTRAIT_HEIGHT = 720;
+const PORTRAIT_HEIGHT = 880;
 const LANDSCAPE_SIZE = { width: WIDTH, height: HEIGHT, mode: "landscape" };
 const PORTRAIT_SIZE = { width: PORTRAIT_WIDTH, height: PORTRAIT_HEIGHT, mode: "portrait" };
 const PLAYER_WIDTH = 46;
