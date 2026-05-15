@@ -13,6 +13,7 @@ const ANSWER_COLORS = ["#00e5ff", "#ff2bd6"];
 const DOODLE_ANSWER_COLORS = ["#4da3ff", "#ff7a8a"];
 const MAX_HEALTH = 10;
 const COIN_SIZE = 24;
+const RECORD_KEY = "math-flight-arcade-record";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -101,10 +102,21 @@ function makeCoinBurst() {
 
   return Array.from({ length: randomInt(5, 8) }, (_, index) => ({
     id: `${Date.now()}-${index}-${Math.random()}`,
+    type: "coin",
     x: centerX + randomInt(-42, 42),
     y: centerY + randomInt(-32, 32),
     phase: Math.random() * Math.PI * 2,
   }));
+}
+
+function makeSingleBonus(kind = "coin") {
+  return {
+    id: `${kind}-${Date.now()}-${Math.random()}`,
+    type: kind,
+    x: randomInt(90, WIDTH - 90),
+    y: -randomInt(42, 120),
+    phase: Math.random() * Math.PI * 2,
+  };
 }
 
 function drawPixelText(ctx, text, x, y, size = 18, align = "left", color = "#ffffff") {
@@ -153,6 +165,10 @@ function drawBonusCoin(ctx, x, y, doodle = false) {
   }
 
   drawCoin(ctx, x, y);
+}
+
+function drawBonusHeart(ctx, x, y, doodle = false) {
+  drawHeart(ctx, x - 4, y - 4, 2, doodle);
 }
 
 function drawHeart(ctx, x, y, halfUnits, doodle = false) {
@@ -209,11 +225,15 @@ export default function ArithmeticFlyCollectGame() {
   const correctRef = useRef(0);
   const roundRef = useRef(0);
   const nextCoinRoundRef = useRef(randomInt(10, 20));
+  const nextSingleBonusAtRef = useRef(0);
   const speedRef = useRef(0.82);
   const statusRef = useRef("idle");
   const flashRef = useRef({ color: null, time: 0 });
   const scrollRef = useRef(0);
   const themeRef = useRef("arcade");
+  const recordRef = useRef(0);
+  const finalScoreRef = useRef(0);
+  const newRecordRef = useRef(false);
 
   const [status, setStatus] = useState("idle");
   const [legendOpen, setLegendOpen] = useState(false);
@@ -225,6 +245,9 @@ export default function ArithmeticFlyCollectGame() {
   const [problem, setProblem] = useState(problemRef.current);
   const [answerOptions, setAnswerOptions] = useState(blocksRef.current.map((block) => block.value));
   const [speed, setSpeed] = useState(speedRef.current);
+  const [record, setRecord] = useState(0);
+  const [finalScore, setFinalScore] = useState(0);
+  const [newRecord, setNewRecord] = useState(false);
 
   const syncUi = useCallback(() => {
     setScore(scoreRef.current);
@@ -234,6 +257,7 @@ export default function ArithmeticFlyCollectGame() {
     setProblem(problemRef.current);
     setAnswerOptions(blocksRef.current.map((block) => block.value));
     setSpeed(speedRef.current);
+    setRecord(recordRef.current);
   }, []);
 
   const nextRound = useCallback(() => {
@@ -258,6 +282,24 @@ export default function ArithmeticFlyCollectGame() {
     setTheme(nextTheme);
   }, []);
 
+  const finishGame = useCallback(() => {
+    const score = scoreRef.current;
+    const isRecord = score > recordRef.current;
+
+    finalScoreRef.current = score;
+    newRecordRef.current = isRecord;
+    setFinalScore(score);
+    setNewRecord(isRecord);
+
+    if (isRecord) {
+      recordRef.current = score;
+      setRecord(score);
+      window.localStorage.setItem(RECORD_KEY, String(score));
+    }
+
+    setGameStatus("over");
+  }, [setGameStatus]);
+
   const restartGame = useCallback(() => {
     scoreRef.current = 0;
     livesRef.current = MAX_HEALTH;
@@ -266,10 +308,13 @@ export default function ArithmeticFlyCollectGame() {
     correctRef.current = 0;
     roundRef.current = 0;
     nextCoinRoundRef.current = randomInt(10, 20);
+    nextSingleBonusAtRef.current = 0;
     speedRef.current = 0.82;
     playerXRef.current = WIDTH / 2;
     playerYRef.current = HEIGHT - 78;
     flashRef.current = { color: null, time: 0 };
+    finalScoreRef.current = 0;
+    newRecordRef.current = false;
     scrollRef.current = 0;
     coinsRef.current = [];
     problemRef.current = makeProblem(1);
@@ -287,10 +332,13 @@ export default function ArithmeticFlyCollectGame() {
     correctRef.current = 0;
     roundRef.current = 0;
     nextCoinRoundRef.current = randomInt(10, 20);
+    nextSingleBonusAtRef.current = 0;
     speedRef.current = 0.82;
     playerXRef.current = WIDTH / 2;
     playerYRef.current = HEIGHT - 78;
     flashRef.current = { color: null, time: 0 };
+    finalScoreRef.current = 0;
+    newRecordRef.current = false;
     scrollRef.current = 0;
     coinsRef.current = [];
     problemRef.current = makeProblem(1);
@@ -307,14 +355,14 @@ export default function ArithmeticFlyCollectGame() {
       flashRef.current = { color, time: 260 };
 
       if (livesRef.current <= 0) {
-        setGameStatus("over");
+        finishGame();
       } else {
         nextRound();
       }
 
       syncUi();
     },
-    [nextRound, setGameStatus, syncUi]
+    [finishGame, nextRound, syncUi]
   );
 
   const collectBlock = useCallback(
@@ -546,6 +594,11 @@ export default function ArithmeticFlyCollectGame() {
   const drawCoins = useCallback((ctx) => {
     const doodle = themeRef.current === "doodle";
     coinsRef.current.forEach((coin) => {
+      if (coin.type === "heart") {
+        drawBonusHeart(ctx, Math.round(coin.x), Math.round(coin.y), doodle);
+        return;
+      }
+
       drawBonusCoin(ctx, Math.round(coin.x), Math.round(coin.y), doodle);
     });
   }, []);
@@ -632,9 +685,13 @@ export default function ArithmeticFlyCollectGame() {
     if (statusRef.current === "over") {
       ctx.fillStyle = "rgba(5, 8, 20, 0.82)";
       ctx.fillRect(0, 70, WIDTH, HEIGHT - 70);
-      drawPixelText(ctx, "Гру завершено", WIDTH / 2, HEIGHT / 2 - 64, 34, "center", "#ff2bd6");
-      drawPixelText(ctx, `Результат ${scoreRef.current}`, WIDTH / 2, HEIGHT / 2 - 10, 24, "center");
-      drawPixelText(ctx, "Почати заново", WIDTH / 2, HEIGHT / 2 + 46, 22, "center", "#00e5ff");
+      drawPixelText(ctx, "Гру завершено", WIDTH / 2, HEIGHT / 2 - 92, 34, "center", "#ff2bd6");
+      drawPixelText(ctx, `Результат ${finalScoreRef.current}`, WIDTH / 2, HEIGHT / 2 - 34, 24, "center");
+      drawPixelText(ctx, `Рекорд ${recordRef.current}`, WIDTH / 2, HEIGHT / 2 + 2, 24, "center", "#fff04a");
+      if (newRecordRef.current) {
+        drawPixelText(ctx, "Новий рекорд!", WIDTH / 2, HEIGHT / 2 + 38, 22, "center", "#00ff75");
+      }
+      drawPixelText(ctx, "Почати заново", WIDTH / 2, HEIGHT / 2 + 78, 22, "center", "#00e5ff");
     }
   }, [drawBackground, drawBlock, drawCoins, drawHud, drawPlayer]);
 
@@ -645,6 +702,15 @@ export default function ArithmeticFlyCollectGame() {
       lastTimeRef.current = time;
 
       if (statusRef.current === "running") {
+        if (nextSingleBonusAtRef.current === 0) {
+          nextSingleBonusAtRef.current = time + randomInt(3500, 7500);
+        }
+        if (time >= nextSingleBonusAtRef.current) {
+          const shouldHeal = livesRef.current < MAX_HEALTH && Math.random() < 0.36;
+          coinsRef.current = [...coinsRef.current, makeSingleBonus(shouldHeal ? "heart" : "coin")];
+          nextSingleBonusAtRef.current = time + randomInt(5500, 10500);
+        }
+
         const turbo = keysRef.current.turbo ? 1.45 : 1;
         const brake = keysRef.current.brake ? 0.58 : 1;
         const fieldSpeed = (1.75 + Math.min(levelRef.current * 0.22, 2.2)) * speedRef.current * turbo * brake;
@@ -690,6 +756,7 @@ export default function ArithmeticFlyCollectGame() {
 
         const playerBox = getPlayerRect(playerXRef.current, playerYRef.current);
         let collectedCoins = 0;
+        let collectedHearts = 0;
 
         coinsRef.current = coinsRef.current.filter((coin) => {
           const hit =
@@ -699,7 +766,11 @@ export default function ArithmeticFlyCollectGame() {
             coin.y + COIN_SIZE > playerBox.y;
 
           if (hit) {
-            collectedCoins += 1;
+            if (coin.type === "heart") {
+              collectedHearts += 1;
+            } else {
+              collectedCoins += 1;
+            }
             return false;
           }
 
@@ -708,6 +779,11 @@ export default function ArithmeticFlyCollectGame() {
 
         if (collectedCoins > 0) {
           scoreRef.current += collectedCoins;
+        }
+        if (collectedHearts > 0) {
+          livesRef.current = clamp(livesRef.current + collectedHearts, 0, MAX_HEALTH);
+        }
+        if (collectedCoins > 0 || collectedHearts > 0) {
           syncUi();
         }
 
@@ -736,6 +812,12 @@ export default function ArithmeticFlyCollectGame() {
     },
     [collectBlock, loseLife, render, syncUi]
   );
+
+  useEffect(() => {
+    const savedRecord = Number(window.localStorage.getItem(RECORD_KEY) || 0);
+    recordRef.current = Number.isFinite(savedRecord) ? savedRecord : 0;
+    setRecord(recordRef.current);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -944,6 +1026,8 @@ export default function ArithmeticFlyCollectGame() {
           <div style={legendPanelStyle}>
             <span>Рахунок</span>
             <strong>{score}</strong>
+            <span>Рекорд</span>
+            <strong>{record}</strong>
             <span>Рівень</span>
             <strong>{level}</strong>
             <span>Життя</span>
