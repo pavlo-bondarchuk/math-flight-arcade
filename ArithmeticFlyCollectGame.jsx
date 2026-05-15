@@ -265,6 +265,12 @@ export default function ArithmeticFlyCollectGame() {
     turbo: false,
     brake: false,
   });
+  const dragRef = useRef({
+    active: false,
+    pointerId: null,
+    offsetX: 0,
+    offsetY: 0,
+  });
   const playerXRef = useRef(initialSize.width / 2);
   const playerYRef = useRef(initialSize.height - 78);
   const problemRef = useRef(makeProblem(1));
@@ -1090,35 +1096,54 @@ export default function ArithmeticFlyCollectGame() {
     const x = (event.clientX - rect.left) * scaleX;
     const y = (event.clientY - rect.top) * scaleY;
 
-    if (active && event.currentTarget.setPointerCapture) {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }
-
-    if (active && x > WIDTH - 76 && y < hudHeight) {
+    const stopTouchKeys = () => {
       keysRef.current.left = false;
       keysRef.current.right = false;
       keysRef.current.turbo = false;
       keysRef.current.brake = false;
+    };
+
+    if (active && x > WIDTH - 76 && y < hudHeight) {
+      dragRef.current.active = false;
+      stopTouchKeys();
       openLegend();
       return;
     }
 
-    if (active && (statusRef.current === "idle" || statusRef.current === "over")) {
-      restartGame();
-    }
-
-    if (!active || y < hudHeight) {
-      keysRef.current.left = false;
-      keysRef.current.right = false;
-      keysRef.current.turbo = false;
-      keysRef.current.brake = false;
+    if (!active) {
+      dragRef.current.active = false;
+      dragRef.current.pointerId = null;
+      stopTouchKeys();
       return;
     }
 
-    keysRef.current.left = x < WIDTH * 0.46;
-    keysRef.current.right = x > WIDTH * 0.54;
-    keysRef.current.turbo = y < HEIGHT * 0.48;
-    keysRef.current.brake = y > HEIGHT * 0.78;
+    if (y < hudHeight) {
+      dragRef.current.active = false;
+      stopTouchKeys();
+      return;
+    }
+
+    if (statusRef.current === "idle" || statusRef.current === "over") {
+      restartGame();
+    }
+
+    if (event.type === "pointerdown") {
+      if (event.currentTarget.setPointerCapture) {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+      dragRef.current.active = true;
+      dragRef.current.pointerId = event.pointerId;
+      dragRef.current.offsetX = x - playerXRef.current;
+      dragRef.current.offsetY = y - playerYRef.current;
+      stopTouchKeys();
+    }
+
+    if (!dragRef.current.active || dragRef.current.pointerId !== event.pointerId) {
+      return;
+    }
+
+    playerXRef.current = clamp(x - dragRef.current.offsetX, 40, WIDTH - 40);
+    playerYRef.current = clamp(y - dragRef.current.offsetY, hudHeight + 36, HEIGHT - 62);
   };
 
   const portraitLayout = canvasSize.mode === "portrait";
@@ -1347,7 +1372,6 @@ const styles = {
   pagePortrait: {
     minHeight: "100svh",
     padding: "8px",
-    paddingBottom: "92px",
     alignItems: "start",
   },
   frame: {
@@ -1393,6 +1417,7 @@ const styles = {
     height: "auto",
     imageRendering: "pixelated",
     cursor: "pointer",
+    touchAction: "none",
   },
   legend: {
     position: "fixed",
