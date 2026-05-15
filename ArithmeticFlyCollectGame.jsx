@@ -25,7 +25,7 @@ const MAX_SPEED = 1.85;
 const ANSWER_FALL_SPEED = 1.22;
 const ANSWER_COLORS = ["#00e5ff", "#ff2bd6"];
 const DOODLE_ANSWER_COLORS = ["#4da3ff", "#ff7a8a"];
-const MAX_HEALTH = 10;
+const MAX_HEALTH = 5;
 const COIN_SIZE = 24;
 const RECORD_KEY = "math-flight-arcade-record";
 const MELODIES = [
@@ -616,21 +616,20 @@ export default function ArithmeticFlyCollectGame() {
       const hudHeight = getHudHeight(sizeRef.current);
       const doodle = themeRef.current === "doodle";
       const portrait = mode === "portrait";
-      const heartStart = portrait ? 120 : 108;
-      const heartGap = portrait ? 30 : 36;
-      const heartY = portrait ? 50 : 19;
       const problemSize = portrait ? 24 : 30;
       const problemY = portrait ? 12 : 16;
+      const iconY = portrait ? 16 : 22;
+      const scoreY = iconY + 2;
+      const lifeX = portrait ? 108 : 116;
 
       ctx.fillStyle = doodle ? "#181818" : "#050814";
       ctx.fillRect(0, 0, WIDTH, hudHeight);
       if (doodle) {
         roughLine(ctx, 0, hudHeight - 2, WIDTH, hudHeight - 2, "#111111", 5);
-        drawCoin(ctx, 18, portrait ? 14 : 22);
-        drawPixelText(ctx, String(scoreRef.current), 52, portrait ? 12 : 20, 24, "left", "#ffffff");
-        for (let i = 0; i < 5; i += 1) {
-          drawHeart(ctx, heartStart + i * heartGap, heartY, clamp(livesRef.current - i * 2, 0, 2), true);
-        }
+        drawCoin(ctx, 18, iconY);
+        drawPixelText(ctx, String(scoreRef.current), 54, scoreY, 24, "left", "#ffffff");
+        drawHeart(ctx, lifeX, iconY - 2, 2, true);
+        drawPixelText(ctx, String(livesRef.current), lifeX + 38, scoreY, 24, "left", "#ffffff");
         drawPixelText(ctx, problemRef.current.text, WIDTH / 2, problemY, problemSize, "center", "#ffe66d");
         drawPixelText(ctx, "☰", WIDTH - 42, portrait ? 12 : 16, 28, "left", "#ffffff");
         return;
@@ -639,11 +638,10 @@ export default function ArithmeticFlyCollectGame() {
       ctx.strokeStyle = "#00e5ff";
       ctx.lineWidth = 4;
       ctx.strokeRect(0, 0, WIDTH, hudHeight);
-      drawCoin(ctx, 18, portrait ? 14 : 22);
-      drawPixelText(ctx, String(scoreRef.current), 52, portrait ? 12 : 20, 24, "left");
-      for (let i = 0; i < 5; i += 1) {
-        drawHeart(ctx, heartStart + i * heartGap, heartY, clamp(livesRef.current - i * 2, 0, 2));
-      }
+      drawCoin(ctx, 18, iconY);
+      drawPixelText(ctx, String(scoreRef.current), 54, scoreY, 24, "left");
+      drawHeart(ctx, lifeX, iconY - 2, 2);
+      drawPixelText(ctx, String(livesRef.current), lifeX + 38, scoreY, 24, "left");
       drawPixelText(ctx, problemRef.current.text, WIDTH / 2, problemY, problemSize, "center", "#fff04a");
       drawPixelText(ctx, "☰", WIDTH - 42, portrait ? 12 : 16, 28, "left", "#00e5ff");
     },
@@ -1215,7 +1213,7 @@ export default function ArithmeticFlyCollectGame() {
             <span>Рівень</span>
             <strong>{level}</strong>
             <span>Життя</span>
-            <strong>{(lives / 2).toFixed(lives % 2 === 0 ? 0 : 1)} / 5</strong>
+            <strong>{lives} / 5</strong>
             <span>Поточне завдання</span>
             <strong>{problem.text}</strong>
             <span>Відповіді</span>
