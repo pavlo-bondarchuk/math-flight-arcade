@@ -1,4 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  buttonClickSound,
+  correctAnswerSound,
+  gameStartSound,
+  initAudio,
+  levelUpSound,
+  wrongAnswerSound,
+} from "./src/sfx.js";
 
 const WIDTH = 820;
 const HEIGHT = 560;
@@ -278,6 +286,8 @@ export default function ArithmeticFlyCollectGame() {
   }, []);
 
   const changeTheme = useCallback((nextTheme) => {
+    initAudio();
+    buttonClickSound();
     themeRef.current = nextTheme;
     setTheme(nextTheme);
   }, []);
@@ -301,6 +311,8 @@ export default function ArithmeticFlyCollectGame() {
   }, [setGameStatus]);
 
   const restartGame = useCallback(() => {
+    initAudio();
+    gameStartSound();
     scoreRef.current = 0;
     livesRef.current = MAX_HEALTH;
     streakRef.current = 0;
@@ -325,6 +337,8 @@ export default function ArithmeticFlyCollectGame() {
   }, [setGameStatus, syncUi]);
 
   const resetGame = useCallback(() => {
+    initAudio();
+    buttonClickSound();
     scoreRef.current = 0;
     livesRef.current = MAX_HEALTH;
     streakRef.current = 0;
@@ -353,6 +367,7 @@ export default function ArithmeticFlyCollectGame() {
       streakRef.current = 0;
       speedRef.current = clamp(speedRef.current + 0.08, MIN_SPEED, MAX_SPEED);
       flashRef.current = { color, time: 260 };
+      wrongAnswerSound();
 
       if (livesRef.current <= 0) {
         finishGame();
@@ -377,9 +392,11 @@ export default function ArithmeticFlyCollectGame() {
         correctRef.current += 1;
         speedRef.current = clamp(speedRef.current - 0.04, MIN_SPEED, MAX_SPEED);
         flashRef.current = { color: "#00ff75", time: 220 };
+        correctAnswerSound();
 
         if (correctRef.current > 0 && correctRef.current % 5 === 0) {
           levelRef.current += 1;
+          levelUpSound();
         }
 
         nextRound();
@@ -406,6 +423,8 @@ export default function ArithmeticFlyCollectGame() {
   }, [setGameStatus]);
 
   const openLegend = useCallback(() => {
+    initAudio();
+    buttonClickSound();
     if (statusRef.current === "running") {
       setGameStatus("paused");
     }
@@ -413,6 +432,8 @@ export default function ArithmeticFlyCollectGame() {
   }, [setGameStatus]);
 
   const closeLegend = useCallback(() => {
+    initAudio();
+    buttonClickSound();
     setLegendOpen(false);
     if (statusRef.current === "paused") {
       lastTimeRef.current = 0;
@@ -834,6 +855,7 @@ export default function ArithmeticFlyCollectGame() {
 
   useEffect(() => {
     const handleDown = (event) => {
+      initAudio();
       const key = event.key.toLowerCase();
 
       if (key === "arrowleft" || key === "a") {
@@ -892,14 +914,19 @@ export default function ArithmeticFlyCollectGame() {
   }, [pauseGame, restartGame, resumeGame]);
 
   const touch = (name, active) => {
+    initAudio();
     if (active && statusRef.current === "paused") {
       lastTimeRef.current = 0;
       setGameStatus("running");
+    }
+    if (active) {
+      buttonClickSound();
     }
     keysRef.current[name] = active;
   };
 
   const canvasClick = (event) => {
+    initAudio();
     const rect = event.currentTarget.getBoundingClientRect();
     const scaleX = WIDTH / rect.width;
     const scaleY = HEIGHT / rect.height;
@@ -913,7 +940,10 @@ export default function ArithmeticFlyCollectGame() {
 
     if (statusRef.current === "idle" || statusRef.current === "over") {
       restartGame();
+      return;
     }
+
+    buttonClickSound();
   };
 
   const pageStyle = theme === "doodle" ? { ...styles.page, background: "#f9e8b8" } : styles.page;
