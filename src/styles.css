@@ -1,0 +1,36 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+button,
+canvas {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 980px) {
+  body #root > div {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 760px) {
+  body #root > div {
+    padding: 14px !important;
+  }
+
+  body #root section > div:first-child {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+
+  body #root section > div:nth-child(2) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
