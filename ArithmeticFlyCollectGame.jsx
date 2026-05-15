@@ -12,6 +12,10 @@ import {
 
 const WIDTH = 820;
 const HEIGHT = 560;
+const PORTRAIT_WIDTH = 420;
+const PORTRAIT_HEIGHT = 720;
+const LANDSCAPE_SIZE = { width: WIDTH, height: HEIGHT, mode: "landscape" };
+const PORTRAIT_SIZE = { width: PORTRAIT_WIDTH, height: PORTRAIT_HEIGHT, mode: "portrait" };
 const PLAYER_WIDTH = 46;
 const PLAYER_HEIGHT = 38;
 const BLOCK_WIDTH = 104;
@@ -36,6 +40,19 @@ function clamp(value, min, max) {
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function getResponsiveSize() {
+  if (typeof window === "undefined") {
+    return LANDSCAPE_SIZE;
+  }
+
+  const portrait = window.innerHeight > window.innerWidth || window.innerWidth <= 700;
+  return portrait ? PORTRAIT_SIZE : LANDSCAPE_SIZE;
+}
+
+function getHudHeight(size) {
+  return size.mode === "portrait" ? 92 : 70;
 }
 
 function makeProblem(level) {
@@ -71,7 +88,9 @@ function makeProblem(level) {
   };
 }
 
-function makeBlocks(answer) {
+function makeBlocks(answer, size = LANDSCAPE_SIZE) {
+  const laneLeft = size.mode === "portrait" ? 0.3 : 0.28;
+  const laneRight = size.mode === "portrait" ? 0.7 : 0.72;
   let wrong = answer;
   while (wrong === answer) {
     wrong = Math.max(0, answer + randomInt(-9, 9));
@@ -86,7 +105,7 @@ function makeBlocks(answer) {
       ...block,
       color: ANSWER_COLORS[index],
       doodleColor: DOODLE_ANSWER_COLORS[index],
-      x: index === 0 ? WIDTH * 0.28 - BLOCK_WIDTH / 2 : WIDTH * 0.72 - BLOCK_WIDTH / 2,
+      x: index === 0 ? size.width * laneLeft - BLOCK_WIDTH / 2 : size.width * laneRight - BLOCK_WIDTH / 2,
       y: -BLOCK_HEIGHT - randomInt(index * 90, index * 90 + 80),
       phase: Math.random() * Math.PI * 2,
     }));
@@ -111,8 +130,9 @@ function getPlayerRect(x, y) {
   };
 }
 
-function makeCoinBurst() {
-  const centerX = randomInt(260, WIDTH - 260);
+function makeCoinBurst(size = LANDSCAPE_SIZE) {
+  const margin = Math.max(84, Math.round(size.width * 0.2));
+  const centerX = randomInt(margin, size.width - margin);
   const centerY = -randomInt(80, 170);
 
   return Array.from({ length: randomInt(5, 8) }, (_, index) => ({
@@ -124,11 +144,12 @@ function makeCoinBurst() {
   }));
 }
 
-function makeSingleBonus(kind = "coin") {
+function makeSingleBonus(kind = "coin", size = LANDSCAPE_SIZE) {
+  const margin = Math.max(58, Math.round(size.width * 0.16));
   return {
     id: `${kind}-${Date.now()}-${Math.random()}`,
     type: kind,
-    x: randomInt(90, WIDTH - 90),
+    x: randomInt(margin, size.width - margin),
     y: -randomInt(42, 120),
     phase: Math.random() * Math.PI * 2,
   };
@@ -233,7 +254,9 @@ function drawHeart(ctx, x, y, halfUnits, doodle = false) {
 }
 
 export default function ArithmeticFlyCollectGame() {
+  const initialSize = getResponsiveSize();
   const canvasRef = useRef(null);
+  const sizeRef = useRef(initialSize);
   const rafRef = useRef(null);
   const lastTimeRef = useRef(0);
   const keysRef = useRef({
@@ -242,10 +265,10 @@ export default function ArithmeticFlyCollectGame() {
     turbo: false,
     brake: false,
   });
-  const playerXRef = useRef(WIDTH / 2);
-  const playerYRef = useRef(HEIGHT - 78);
+  const playerXRef = useRef(initialSize.width / 2);
+  const playerYRef = useRef(initialSize.height - 78);
   const problemRef = useRef(makeProblem(1));
-  const blocksRef = useRef(makeBlocks(problemRef.current.answer));
+  const blocksRef = useRef(makeBlocks(problemRef.current.answer, initialSize));
   const coinsRef = useRef([]);
   const scoreRef = useRef(0);
   const livesRef = useRef(MAX_HEALTH);
@@ -279,6 +302,7 @@ export default function ArithmeticFlyCollectGame() {
   const [record, setRecord] = useState(0);
   const [finalScore, setFinalScore] = useState(0);
   const [newRecord, setNewRecord] = useState(false);
+  const [canvasSize, setCanvasSize] = useState(initialSize);
 
   const syncUi = useCallback(() => {
     setScore(scoreRef.current);
@@ -294,9 +318,9 @@ export default function ArithmeticFlyCollectGame() {
   const nextRound = useCallback(() => {
     roundRef.current += 1;
     problemRef.current = makeProblem(levelRef.current);
-    blocksRef.current = makeBlocks(problemRef.current.answer);
+    blocksRef.current = makeBlocks(problemRef.current.answer, sizeRef.current);
     if (roundRef.current >= nextCoinRoundRef.current) {
-      coinsRef.current = [...coinsRef.current, ...makeCoinBurst()];
+      coinsRef.current = [...coinsRef.current, ...makeCoinBurst(sizeRef.current)];
       nextCoinRoundRef.current = roundRef.current + randomInt(10, 20);
     }
     speedRef.current = clamp(speedRef.current + 0.012, MIN_SPEED, MAX_SPEED);
@@ -357,15 +381,15 @@ export default function ArithmeticFlyCollectGame() {
     nextCoinRoundRef.current = randomInt(10, 20);
     nextSingleBonusAtRef.current = 0;
     speedRef.current = 0.82;
-    playerXRef.current = WIDTH / 2;
-    playerYRef.current = HEIGHT - 78;
+    playerXRef.current = sizeRef.current.width / 2;
+    playerYRef.current = sizeRef.current.height - 78;
     flashRef.current = { color: null, time: 0 };
     finalScoreRef.current = 0;
     newRecordRef.current = false;
     scrollRef.current = 0;
     coinsRef.current = [];
     problemRef.current = makeProblem(1);
-    blocksRef.current = makeBlocks(problemRef.current.answer);
+    blocksRef.current = makeBlocks(problemRef.current.answer, sizeRef.current);
     setLegendOpen(false);
     setGameStatus("running");
     syncUi();
@@ -384,15 +408,15 @@ export default function ArithmeticFlyCollectGame() {
     nextCoinRoundRef.current = randomInt(10, 20);
     nextSingleBonusAtRef.current = 0;
     speedRef.current = 0.82;
-    playerXRef.current = WIDTH / 2;
-    playerYRef.current = HEIGHT - 78;
+    playerXRef.current = sizeRef.current.width / 2;
+    playerYRef.current = sizeRef.current.height - 78;
     flashRef.current = { color: null, time: 0 };
     finalScoreRef.current = 0;
     newRecordRef.current = false;
     scrollRef.current = 0;
     coinsRef.current = [];
     problemRef.current = makeProblem(1);
-    blocksRef.current = makeBlocks(problemRef.current.answer);
+    blocksRef.current = makeBlocks(problemRef.current.answer, sizeRef.current);
     setGameStatus("idle");
     syncUi();
   }, [setGameStatus, syncUi]);
@@ -482,6 +506,9 @@ export default function ArithmeticFlyCollectGame() {
   }, [setGameStatus]);
 
   const drawBackground = useCallback((ctx) => {
+    const { width: WIDTH, height: HEIGHT } = sizeRef.current;
+    const hudHeight = getHudHeight(sizeRef.current);
+
     if (themeRef.current === "doodle") {
       ctx.fillStyle = "#fff1c9";
       ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -519,7 +546,7 @@ export default function ArithmeticFlyCollectGame() {
       ctx.strokeStyle = "rgba(35, 35, 35, 0.38)";
       ctx.lineWidth = 3;
       for (let i = 0; i < 11; i += 1) {
-        const y = 86 + ((i * 56 + scrollRef.current * 1.15) % (HEIGHT - 86));
+        const y = hudHeight + 16 + ((i * 56 + scrollRef.current * 1.15) % (HEIGHT - hudHeight - 16));
         roughLine(ctx, 0, y, WIDTH, y + Math.sin(i) * 8, "#444444", 2);
       }
 
@@ -559,7 +586,7 @@ export default function ArithmeticFlyCollectGame() {
     ctx.strokeStyle = "rgba(0, 229, 255, 0.34)";
     ctx.lineWidth = 2;
     for (let i = 0; i < 12; i += 1) {
-      const y = 82 + ((i * 58 + scrollRef.current * 1.4) % (HEIGHT - 82));
+      const y = hudHeight + 12 + ((i * 58 + scrollRef.current * 1.4) % (HEIGHT - hudHeight - 12));
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(WIDTH, y);
@@ -570,7 +597,7 @@ export default function ArithmeticFlyCollectGame() {
     for (let i = 0; i < 10; i += 1) {
       const x = (i * 94 + Math.floor(scrollRef.current * 0.22)) % WIDTH;
       ctx.beginPath();
-      ctx.moveTo(x, 70);
+      ctx.moveTo(x, hudHeight);
       ctx.lineTo(x, HEIGHT);
       ctx.stroke();
     }
@@ -585,32 +612,40 @@ export default function ArithmeticFlyCollectGame() {
 
   const drawHud = useCallback(
     (ctx) => {
+      const { width: WIDTH, mode } = sizeRef.current;
+      const hudHeight = getHudHeight(sizeRef.current);
       const doodle = themeRef.current === "doodle";
+      const portrait = mode === "portrait";
+      const heartStart = portrait ? 120 : 108;
+      const heartGap = portrait ? 30 : 36;
+      const heartY = portrait ? 50 : 19;
+      const problemSize = portrait ? 24 : 30;
+      const problemY = portrait ? 12 : 16;
 
       ctx.fillStyle = doodle ? "#181818" : "#050814";
-      ctx.fillRect(0, 0, WIDTH, 70);
+      ctx.fillRect(0, 0, WIDTH, hudHeight);
       if (doodle) {
-        roughLine(ctx, 0, 68, WIDTH, 68, "#111111", 5);
-        drawCoin(ctx, 20, 22);
-        drawPixelText(ctx, String(scoreRef.current), 54, 20, 24, "left", "#ffffff");
+        roughLine(ctx, 0, hudHeight - 2, WIDTH, hudHeight - 2, "#111111", 5);
+        drawCoin(ctx, 18, portrait ? 14 : 22);
+        drawPixelText(ctx, String(scoreRef.current), 52, portrait ? 12 : 20, 24, "left", "#ffffff");
         for (let i = 0; i < 5; i += 1) {
-          drawHeart(ctx, 108 + i * 36, 19, clamp(livesRef.current - i * 2, 0, 2), true);
+          drawHeart(ctx, heartStart + i * heartGap, heartY, clamp(livesRef.current - i * 2, 0, 2), true);
         }
-        drawPixelText(ctx, problemRef.current.text, WIDTH / 2, 16, 30, "center", "#ffe66d");
-        drawPixelText(ctx, "☰", WIDTH - 42, 16, 28, "left", "#ffffff");
+        drawPixelText(ctx, problemRef.current.text, WIDTH / 2, problemY, problemSize, "center", "#ffe66d");
+        drawPixelText(ctx, "☰", WIDTH - 42, portrait ? 12 : 16, 28, "left", "#ffffff");
         return;
       }
 
       ctx.strokeStyle = "#00e5ff";
       ctx.lineWidth = 4;
-      ctx.strokeRect(0, 0, WIDTH, 70);
-      drawCoin(ctx, 20, 22);
-      drawPixelText(ctx, String(scoreRef.current), 54, 20, 24, "left");
+      ctx.strokeRect(0, 0, WIDTH, hudHeight);
+      drawCoin(ctx, 18, portrait ? 14 : 22);
+      drawPixelText(ctx, String(scoreRef.current), 52, portrait ? 12 : 20, 24, "left");
       for (let i = 0; i < 5; i += 1) {
-        drawHeart(ctx, 108 + i * 36, 19, clamp(livesRef.current - i * 2, 0, 2));
+        drawHeart(ctx, heartStart + i * heartGap, heartY, clamp(livesRef.current - i * 2, 0, 2));
       }
-      drawPixelText(ctx, problemRef.current.text, WIDTH / 2, 16, 30, "center", "#fff04a");
-      drawPixelText(ctx, "☰", WIDTH - 42, 16, 28, "left", "#00e5ff");
+      drawPixelText(ctx, problemRef.current.text, WIDTH / 2, problemY, problemSize, "center", "#fff04a");
+      drawPixelText(ctx, "☰", WIDTH - 42, portrait ? 12 : 16, 28, "left", "#00e5ff");
     },
     []
   );
@@ -721,6 +756,10 @@ export default function ArithmeticFlyCollectGame() {
       return;
     }
 
+    const { width: WIDTH, height: HEIGHT, mode } = sizeRef.current;
+    const hudHeight = getHudHeight(sizeRef.current);
+    const titleSize = mode === "portrait" ? 24 : 32;
+    const subtitleSize = mode === "portrait" ? 16 : 22;
     const ctx = canvas.getContext("2d");
     ctx.imageSmoothingEnabled = false;
     drawBackground(ctx);
@@ -731,21 +770,21 @@ export default function ArithmeticFlyCollectGame() {
 
     if (statusRef.current === "paused") {
       ctx.fillStyle = "rgba(5, 8, 20, 0.72)";
-      ctx.fillRect(0, 70, WIDTH, HEIGHT - 70);
+      ctx.fillRect(0, hudHeight, WIDTH, HEIGHT - hudHeight);
       drawPixelText(ctx, "ПАУЗА", WIDTH / 2, HEIGHT / 2 - 22, 34, "center", "#ffffff");
     }
 
     if (statusRef.current === "idle") {
       ctx.fillStyle = "rgba(5, 8, 20, 0.72)";
-      ctx.fillRect(0, 70, WIDTH, HEIGHT - 70);
-      drawPixelText(ctx, "Математичний політ", WIDTH / 2, HEIGHT / 2 - 78, 32, "center", "#fff04a");
-      drawPixelText(ctx, "Лети й збирай відповіді", WIDTH / 2, HEIGHT / 2 - 28, 22, "center");
+      ctx.fillRect(0, hudHeight, WIDTH, HEIGHT - hudHeight);
+      drawPixelText(ctx, "Математичний політ", WIDTH / 2, HEIGHT / 2 - 78, titleSize, "center", "#fff04a");
+      drawPixelText(ctx, "Лети й збирай відповіді", WIDTH / 2, HEIGHT / 2 - 28, subtitleSize, "center");
       drawPixelText(ctx, "Почати гру", WIDTH / 2, HEIGHT / 2 + 34, 22, "center", "#00e5ff");
     }
 
     if (statusRef.current === "over") {
       ctx.fillStyle = "rgba(5, 8, 20, 0.82)";
-      ctx.fillRect(0, 70, WIDTH, HEIGHT - 70);
+      ctx.fillRect(0, hudHeight, WIDTH, HEIGHT - hudHeight);
       drawPixelText(ctx, "Гру завершено", WIDTH / 2, HEIGHT / 2 - 92, 34, "center", "#ff2bd6");
       drawPixelText(ctx, `Результат ${finalScoreRef.current}`, WIDTH / 2, HEIGHT / 2 - 34, 24, "center");
       drawPixelText(ctx, `Рекорд ${recordRef.current}`, WIDTH / 2, HEIGHT / 2 + 2, 24, "center", "#fff04a");
@@ -763,12 +802,14 @@ export default function ArithmeticFlyCollectGame() {
       lastTimeRef.current = time;
 
       if (statusRef.current === "running") {
+        const { width: WIDTH, height: HEIGHT } = sizeRef.current;
+
         if (nextSingleBonusAtRef.current === 0) {
           nextSingleBonusAtRef.current = time + randomInt(3500, 7500);
         }
         if (time >= nextSingleBonusAtRef.current) {
           const shouldHeal = livesRef.current < MAX_HEALTH && Math.random() < 0.36;
-          coinsRef.current = [...coinsRef.current, makeSingleBonus(shouldHeal ? "heart" : "coin")];
+          coinsRef.current = [...coinsRef.current, makeSingleBonus(shouldHeal ? "heart" : "coin", sizeRef.current)];
           nextSingleBonusAtRef.current = time + randomInt(5500, 10500);
         }
 
@@ -881,6 +922,43 @@ export default function ArithmeticFlyCollectGame() {
   }, []);
 
   useEffect(() => {
+    const handleResize = () => {
+      const nextSize = getResponsiveSize();
+      const currentSize = sizeRef.current;
+
+      if (nextSize.width === currentSize.width && nextSize.height === currentSize.height) {
+        return;
+      }
+
+      const scaleX = nextSize.width / currentSize.width;
+      const scaleY = nextSize.height / currentSize.height;
+      sizeRef.current = nextSize;
+      playerXRef.current = clamp(playerXRef.current * scaleX, 40, nextSize.width - 40);
+      playerYRef.current = clamp(playerYRef.current * scaleY, nextSize.height - 190, nextSize.height - 62);
+      blocksRef.current = blocksRef.current.map((block) => ({
+        ...block,
+        x: clamp(block.x * scaleX, 18, nextSize.width - BLOCK_WIDTH - 18),
+        y: block.y * scaleY,
+      }));
+      coinsRef.current = coinsRef.current.map((coin) => ({
+        ...coin,
+        x: clamp(coin.x * scaleX, 18, nextSize.width - COIN_SIZE - 18),
+        y: coin.y * scaleY,
+      }));
+      setCanvasSize(nextSize);
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("orientationchange", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("orientationchange", handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas) {
       canvas.style.imageRendering = "pixelated";
@@ -966,15 +1044,25 @@ export default function ArithmeticFlyCollectGame() {
     keysRef.current[name] = active;
   };
 
+  const touchControl = (event, name, active) => {
+    event.preventDefault();
+    if (active && event.currentTarget.setPointerCapture) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    touch(name, active);
+  };
+
   const canvasClick = (event) => {
     initAudio();
+    const { width: WIDTH, height: HEIGHT } = sizeRef.current;
+    const hudHeight = getHudHeight(sizeRef.current);
     const rect = event.currentTarget.getBoundingClientRect();
     const scaleX = WIDTH / rect.width;
     const scaleY = HEIGHT / rect.height;
     const x = (event.clientX - rect.left) * scaleX;
     const y = (event.clientY - rect.top) * scaleY;
 
-    if (x > WIDTH - 76 && y < 70) {
+    if (x > WIDTH - 76 && y < hudHeight) {
       openLegend();
       return;
     }
@@ -987,16 +1075,21 @@ export default function ArithmeticFlyCollectGame() {
     buttonClickSound();
   };
 
-  const pageStyle = theme === "doodle" ? { ...styles.page, background: "#f9e8b8" } : styles.page;
+  const portraitLayout = canvasSize.mode === "portrait";
+  const pageStyle =
+    theme === "doodle"
+      ? { ...styles.page, ...(portraitLayout ? styles.pagePortrait : null), background: "#f9e8b8" }
+      : { ...styles.page, ...(portraitLayout ? styles.pagePortrait : null) };
   const frameStyle =
     theme === "doodle"
       ? {
           ...styles.frame,
+          ...(portraitLayout ? styles.framePortrait : null),
           border: "6px solid #111111",
           background: "#fff1c9",
           boxShadow: "8px 8px 0 #ff7a8a, -8px -8px 0 #4da3ff",
         }
-      : styles.frame;
+      : { ...styles.frame, ...(portraitLayout ? styles.framePortrait : null) };
   const legendStyle =
     theme === "doodle"
       ? {
@@ -1057,7 +1150,13 @@ export default function ArithmeticFlyCollectGame() {
         )}
 
         <div style={styles.canvasShell}>
-          <canvas ref={canvasRef} width={WIDTH} height={HEIGHT} style={styles.canvas} onClick={canvasClick} />
+          <canvas
+            ref={canvasRef}
+            width={canvasSize.width}
+            height={canvasSize.height}
+            style={styles.canvas}
+            onClick={canvasClick}
+          />
         </div>
       </section>
 
@@ -1140,40 +1239,40 @@ export default function ArithmeticFlyCollectGame() {
             <button
               style={touchButtonStyle}
               type="button"
-              onPointerDown={() => touch("left", true)}
-              onPointerUp={() => touch("left", false)}
-              onPointerCancel={() => touch("left", false)}
-              onPointerLeave={() => touch("left", false)}
+              onPointerDown={(event) => touchControl(event, "left", true)}
+              onPointerUp={(event) => touchControl(event, "left", false)}
+              onPointerCancel={(event) => touchControl(event, "left", false)}
+              onPointerLeave={(event) => touchControl(event, "left", false)}
             >
               ←
             </button>
             <button
               style={touchButtonStyle}
               type="button"
-              onPointerDown={() => touch("right", true)}
-              onPointerUp={() => touch("right", false)}
-              onPointerCancel={() => touch("right", false)}
-              onPointerLeave={() => touch("right", false)}
+              onPointerDown={(event) => touchControl(event, "right", true)}
+              onPointerUp={(event) => touchControl(event, "right", false)}
+              onPointerCancel={(event) => touchControl(event, "right", false)}
+              onPointerLeave={(event) => touchControl(event, "right", false)}
             >
               →
             </button>
             <button
               style={touchButtonStyle}
               type="button"
-              onPointerDown={() => touch("turbo", true)}
-              onPointerUp={() => touch("turbo", false)}
-              onPointerCancel={() => touch("turbo", false)}
-              onPointerLeave={() => touch("turbo", false)}
+              onPointerDown={(event) => touchControl(event, "turbo", true)}
+              onPointerUp={(event) => touchControl(event, "turbo", false)}
+              onPointerCancel={(event) => touchControl(event, "turbo", false)}
+              onPointerLeave={(event) => touchControl(event, "turbo", false)}
             >
               Турбо
             </button>
             <button
               style={touchButtonStyle}
               type="button"
-              onPointerDown={() => touch("brake", true)}
-              onPointerUp={() => touch("brake", false)}
-              onPointerCancel={() => touch("brake", false)}
-              onPointerLeave={() => touch("brake", false)}
+              onPointerDown={(event) => touchControl(event, "brake", true)}
+              onPointerUp={(event) => touchControl(event, "brake", false)}
+              onPointerCancel={(event) => touchControl(event, "brake", false)}
+              onPointerLeave={(event) => touchControl(event, "brake", false)}
             >
               Гальмо
             </button>
@@ -1194,11 +1293,25 @@ const styles = {
     color: "#ffffff",
     fontFamily: '"Courier New", monospace',
   },
+  pagePortrait: {
+    minHeight: "100svh",
+    padding: "8px",
+    paddingBottom: "92px",
+    alignItems: "start",
+  },
   frame: {
     width: "min(100%, 900px)",
     border: "6px solid #00e5ff",
     background: "#050814",
     boxShadow: "0 0 0 6px #ff2bd6, 0 0 36px #00e5ff",
+  },
+  framePortrait: {
+    width: "min(calc(100vw - 22px), 430px)",
+    maxWidth: "calc(100vw - 22px)",
+    minWidth: 0,
+    overflow: "hidden",
+    borderWidth: "4px",
+    boxShadow: "0 0 0 4px #ff2bd6, 0 0 24px #00e5ff",
   },
   marquee: {
     padding: "14px 16px",
@@ -1220,10 +1333,12 @@ const styles = {
   canvasShell: {
     position: "relative",
     background: "#050814",
+    minWidth: 0,
   },
   canvas: {
     display: "block",
     width: "100%",
+    maxWidth: "100%",
     height: "auto",
     imageRendering: "pixelated",
     cursor: "pointer",
