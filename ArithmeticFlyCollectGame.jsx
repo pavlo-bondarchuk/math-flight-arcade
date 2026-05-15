@@ -11,6 +11,8 @@ const MAX_SPEED = 1.85;
 const ANSWER_FALL_SPEED = 1.22;
 const ANSWER_COLORS = ["#00e5ff", "#ff2bd6"];
 const DOODLE_ANSWER_COLORS = ["#4da3ff", "#ff7a8a"];
+const MAX_HEALTH = 10;
+const COIN_SIZE = 24;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -93,6 +95,18 @@ function getPlayerRect(x, y) {
   };
 }
 
+function makeCoinBurst() {
+  const centerX = randomInt(260, WIDTH - 260);
+  const centerY = -randomInt(80, 170);
+
+  return Array.from({ length: randomInt(5, 8) }, (_, index) => ({
+    id: `${Date.now()}-${index}-${Math.random()}`,
+    x: centerX + randomInt(-42, 42),
+    y: centerY + randomInt(-32, 32),
+    phase: Math.random() * Math.PI * 2,
+  }));
+}
+
 function drawPixelText(ctx, text, x, y, size = 18, align = "left", color = "#ffffff") {
   ctx.font = `900 ${size}px "Courier New", monospace`;
   ctx.textAlign = align;
@@ -126,6 +140,53 @@ function drawCoin(ctx, x, y) {
   ctx.fillRect(x + 8, y + 5, 6, 3);
 }
 
+function drawBonusCoin(ctx, x, y, doodle = false) {
+  if (doodle) {
+    ctx.fillStyle = "#ffd166";
+    ctx.beginPath();
+    ctx.arc(x + COIN_SIZE / 2, y + COIN_SIZE / 2, COIN_SIZE / 2 - 2, 0, Math.PI * 2);
+    ctx.fill();
+    roughLine(ctx, x + 4, y + 8, x + 20, y + 5, "#111111", 2);
+    roughLine(ctx, x + 3, y + 14, x + 21, y + 17, "#111111", 2);
+    drawPixelText(ctx, "$", x + 12, y + 4, 16, "center", "#111111");
+    return;
+  }
+
+  drawCoin(ctx, x, y);
+}
+
+function drawHeart(ctx, x, y, halfUnits, doodle = false) {
+  const fill = doodle ? "#ff5d73" : "#ff1744";
+  const empty = doodle ? "#fff6d8" : "#1b1f35";
+  const stroke = doodle ? "#111111" : "#ffffff";
+
+  ctx.fillStyle = empty;
+  ctx.fillRect(x + 4, y + 6, 24, 18);
+  ctx.fillStyle = fill;
+  if (halfUnits > 0) {
+    ctx.fillRect(x + 4, y + 6, halfUnits === 1 ? 12 : 24, 18);
+  }
+
+  if (doodle) {
+    roughLine(ctx, x + 4, y + 10, x + 10, y + 4, stroke, 2);
+    roughLine(ctx, x + 10, y + 4, x + 16, y + 10, stroke, 2);
+    roughLine(ctx, x + 16, y + 10, x + 22, y + 4, stroke, 2);
+    roughLine(ctx, x + 22, y + 4, x + 28, y + 10, stroke, 2);
+    roughLine(ctx, x + 28, y + 10, x + 16, y + 28, stroke, 2);
+    roughLine(ctx, x + 16, y + 28, x + 4, y + 10, stroke, 2);
+    return;
+  }
+
+  ctx.fillStyle = stroke;
+  ctx.fillRect(x + 8, y + 2, 8, 4);
+  ctx.fillRect(x + 20, y + 2, 8, 4);
+  ctx.fillRect(x + 4, y + 6, 4, 10);
+  ctx.fillRect(x + 28, y + 6, 4, 10);
+  ctx.fillRect(x + 8, y + 24, 4, 4);
+  ctx.fillRect(x + 24, y + 24, 4, 4);
+  ctx.fillRect(x + 12, y + 28, 12, 4);
+}
+
 export default function ArithmeticFlyCollectGame() {
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
@@ -140,11 +201,14 @@ export default function ArithmeticFlyCollectGame() {
   const playerYRef = useRef(HEIGHT - 78);
   const problemRef = useRef(makeProblem(1));
   const blocksRef = useRef(makeBlocks(problemRef.current.answer));
+  const coinsRef = useRef([]);
   const scoreRef = useRef(0);
-  const livesRef = useRef(3);
+  const livesRef = useRef(MAX_HEALTH);
   const streakRef = useRef(0);
   const levelRef = useRef(1);
   const correctRef = useRef(0);
+  const roundRef = useRef(0);
+  const nextCoinRoundRef = useRef(randomInt(10, 20));
   const speedRef = useRef(0.82);
   const statusRef = useRef("idle");
   const flashRef = useRef({ color: null, time: 0 });
@@ -155,7 +219,7 @@ export default function ArithmeticFlyCollectGame() {
   const [legendOpen, setLegendOpen] = useState(false);
   const [theme, setTheme] = useState("arcade");
   const [score, setScore] = useState(0);
-  const [lives, setLives] = useState(3);
+  const [lives, setLives] = useState(MAX_HEALTH);
   const [streak, setStreak] = useState(0);
   const [level, setLevel] = useState(1);
   const [problem, setProblem] = useState(problemRef.current);
@@ -173,8 +237,13 @@ export default function ArithmeticFlyCollectGame() {
   }, []);
 
   const nextRound = useCallback(() => {
+    roundRef.current += 1;
     problemRef.current = makeProblem(levelRef.current);
     blocksRef.current = makeBlocks(problemRef.current.answer);
+    if (roundRef.current >= nextCoinRoundRef.current) {
+      coinsRef.current = [...coinsRef.current, ...makeCoinBurst()];
+      nextCoinRoundRef.current = roundRef.current + randomInt(10, 20);
+    }
     speedRef.current = clamp(speedRef.current + 0.012, MIN_SPEED, MAX_SPEED);
     syncUi();
   }, [syncUi]);
@@ -191,15 +260,18 @@ export default function ArithmeticFlyCollectGame() {
 
   const restartGame = useCallback(() => {
     scoreRef.current = 0;
-    livesRef.current = 3;
+    livesRef.current = MAX_HEALTH;
     streakRef.current = 0;
     levelRef.current = 1;
     correctRef.current = 0;
+    roundRef.current = 0;
+    nextCoinRoundRef.current = randomInt(10, 20);
     speedRef.current = 0.82;
     playerXRef.current = WIDTH / 2;
     playerYRef.current = HEIGHT - 78;
     flashRef.current = { color: null, time: 0 };
     scrollRef.current = 0;
+    coinsRef.current = [];
     problemRef.current = makeProblem(1);
     blocksRef.current = makeBlocks(problemRef.current.answer);
     setLegendOpen(false);
@@ -209,15 +281,18 @@ export default function ArithmeticFlyCollectGame() {
 
   const resetGame = useCallback(() => {
     scoreRef.current = 0;
-    livesRef.current = 3;
+    livesRef.current = MAX_HEALTH;
     streakRef.current = 0;
     levelRef.current = 1;
     correctRef.current = 0;
+    roundRef.current = 0;
+    nextCoinRoundRef.current = randomInt(10, 20);
     speedRef.current = 0.82;
     playerXRef.current = WIDTH / 2;
     playerYRef.current = HEIGHT - 78;
     flashRef.current = { color: null, time: 0 };
     scrollRef.current = 0;
+    coinsRef.current = [];
     problemRef.current = makeProblem(1);
     blocksRef.current = makeBlocks(problemRef.current.answer);
     setGameStatus("idle");
@@ -409,6 +484,9 @@ export default function ArithmeticFlyCollectGame() {
         roughLine(ctx, 0, 68, WIDTH, 68, "#111111", 5);
         drawCoin(ctx, 20, 22);
         drawPixelText(ctx, String(scoreRef.current), 54, 20, 24, "left", "#ffffff");
+        for (let i = 0; i < 5; i += 1) {
+          drawHeart(ctx, 108 + i * 36, 19, clamp(livesRef.current - i * 2, 0, 2), true);
+        }
         drawPixelText(ctx, problemRef.current.text, WIDTH / 2, 16, 30, "center", "#ffe66d");
         drawPixelText(ctx, "☰", WIDTH - 42, 16, 28, "left", "#ffffff");
         return;
@@ -419,6 +497,9 @@ export default function ArithmeticFlyCollectGame() {
       ctx.strokeRect(0, 0, WIDTH, 70);
       drawCoin(ctx, 20, 22);
       drawPixelText(ctx, String(scoreRef.current), 54, 20, 24, "left");
+      for (let i = 0; i < 5; i += 1) {
+        drawHeart(ctx, 108 + i * 36, 19, clamp(livesRef.current - i * 2, 0, 2));
+      }
       drawPixelText(ctx, problemRef.current.text, WIDTH / 2, 16, 30, "center", "#fff04a");
       drawPixelText(ctx, "☰", WIDTH - 42, 16, 28, "left", "#00e5ff");
     },
@@ -460,6 +541,13 @@ export default function ArithmeticFlyCollectGame() {
     ctx.fillRect(BLOCK_WIDTH - 20, BLOCK_HEIGHT - 20, 10, 10);
     drawPixelText(ctx, String(block.value), BLOCK_WIDTH / 2, 17, 24, "center");
     ctx.restore();
+  }, []);
+
+  const drawCoins = useCallback((ctx) => {
+    const doodle = themeRef.current === "doodle";
+    coinsRef.current.forEach((coin) => {
+      drawBonusCoin(ctx, Math.round(coin.x), Math.round(coin.y), doodle);
+    });
   }, []);
 
   const drawPlayer = useCallback((ctx) => {
@@ -523,6 +611,7 @@ export default function ArithmeticFlyCollectGame() {
     ctx.imageSmoothingEnabled = false;
     drawBackground(ctx);
     blocksRef.current.forEach((block) => drawBlock(ctx, block));
+    drawCoins(ctx);
     drawPlayer(ctx);
     drawHud(ctx);
 
@@ -547,7 +636,7 @@ export default function ArithmeticFlyCollectGame() {
       drawPixelText(ctx, `Результат ${scoreRef.current}`, WIDTH / 2, HEIGHT / 2 - 10, 24, "center");
       drawPixelText(ctx, "Почати заново", WIDTH / 2, HEIGHT / 2 + 46, 22, "center", "#00e5ff");
     }
-  }, [drawBackground, drawBlock, drawHud, drawPlayer]);
+  }, [drawBackground, drawBlock, drawCoins, drawHud, drawPlayer]);
 
   const tick = useCallback(
     (time) => {
@@ -587,11 +676,40 @@ export default function ArithmeticFlyCollectGame() {
           x: block.x + Math.sin(time / 430 + block.phase) * 0.16 * delta,
         }));
 
+        coinsRef.current = coinsRef.current
+          .map((coin) => ({
+            ...coin,
+            y: coin.y + (ANSWER_FALL_SPEED * 1.08 + 0.18) * speedRef.current * delta,
+            x: coin.x + Math.sin(time / 280 + coin.phase) * 0.24 * delta,
+          }))
+          .filter((coin) => coin.y < HEIGHT + COIN_SIZE);
+
         if (flashRef.current.time > 0) {
           flashRef.current.time -= 16.67 * delta;
         }
 
         const playerBox = getPlayerRect(playerXRef.current, playerYRef.current);
+        let collectedCoins = 0;
+
+        coinsRef.current = coinsRef.current.filter((coin) => {
+          const hit =
+            coin.x < playerBox.x + playerBox.width &&
+            coin.x + COIN_SIZE > playerBox.x &&
+            coin.y < playerBox.y + playerBox.height &&
+            coin.y + COIN_SIZE > playerBox.y;
+
+          if (hit) {
+            collectedCoins += 1;
+            return false;
+          }
+
+          return true;
+        });
+
+        if (collectedCoins > 0) {
+          scoreRef.current += collectedCoins;
+          syncUi();
+        }
 
         const collected = blocksRef.current.find(
           (block) => {
@@ -616,7 +734,7 @@ export default function ArithmeticFlyCollectGame() {
       render();
       rafRef.current = window.requestAnimationFrame(tick);
     },
-    [collectBlock, loseLife, render]
+    [collectBlock, loseLife, render, syncUi]
   );
 
   useEffect(() => {
@@ -829,7 +947,7 @@ export default function ArithmeticFlyCollectGame() {
             <span>Рівень</span>
             <strong>{level}</strong>
             <span>Життя</span>
-            <strong>{lives}</strong>
+            <strong>{(lives / 2).toFixed(lives % 2 === 0 ? 0 : 1)} / 5</strong>
             <span>Поточне завдання</span>
             <strong>{problem.text}</strong>
             <span>Відповіді</span>
