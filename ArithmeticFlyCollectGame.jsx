@@ -9,6 +9,8 @@ const BLOCK_HEIGHT = 58;
 const MIN_SPEED = 0.72;
 const MAX_SPEED = 1.85;
 const ANSWER_FALL_SPEED = 1.22;
+const ANSWER_COLORS = ["#00e5ff", "#ff2bd6"];
+const DOODLE_ANSWER_COLORS = ["#4da3ff", "#ff7a8a"];
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -64,6 +66,8 @@ function makeBlocks(answer) {
     .sort(() => Math.random() - 0.5)
     .map((block, index) => ({
       ...block,
+      color: ANSWER_COLORS[index],
+      doodleColor: DOODLE_ANSWER_COLORS[index],
       x: index === 0 ? WIDTH * 0.28 - BLOCK_WIDTH / 2 : WIDTH * 0.72 - BLOCK_WIDTH / 2,
       y: -BLOCK_HEIGHT - randomInt(index * 90, index * 90 + 80),
       phase: Math.random() * Math.PI * 2,
@@ -99,6 +103,29 @@ function drawPixelText(ctx, text, x, y, size = 18, align = "left", color = "#fff
   ctx.fillText(text, x, y);
 }
 
+function roughLine(ctx, x1, y1, x2, y2, color = "#111111", width = 3) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  for (let i = 0; i < 2; i += 1) {
+    ctx.beginPath();
+    ctx.moveTo(x1 + (i ? 2 : -1), y1 + (i ? -1 : 2));
+    ctx.lineTo(x2 + (i ? -2 : 1), y2 + (i ? 2 : -2));
+    ctx.stroke();
+  }
+}
+
+function drawCoin(ctx, x, y) {
+  ctx.fillStyle = "#fff04a";
+  ctx.fillRect(x + 4, y, 16, 4);
+  ctx.fillRect(x, y + 4, 24, 16);
+  ctx.fillRect(x + 4, y + 20, 16, 4);
+  ctx.fillStyle = "#ff9f1a";
+  ctx.fillRect(x + 4, y + 4, 4, 16);
+  ctx.fillRect(x + 16, y + 4, 4, 16);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(x + 8, y + 5, 6, 3);
+}
+
 export default function ArithmeticFlyCollectGame() {
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
@@ -122,9 +149,11 @@ export default function ArithmeticFlyCollectGame() {
   const statusRef = useRef("idle");
   const flashRef = useRef({ color: null, time: 0 });
   const scrollRef = useRef(0);
+  const themeRef = useRef("arcade");
 
   const [status, setStatus] = useState("idle");
   const [legendOpen, setLegendOpen] = useState(false);
+  const [theme, setTheme] = useState("arcade");
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [streak, setStreak] = useState(0);
@@ -153,6 +182,11 @@ export default function ArithmeticFlyCollectGame() {
   const setGameStatus = useCallback((nextStatus) => {
     statusRef.current = nextStatus;
     setStatus(nextStatus);
+  }, []);
+
+  const changeTheme = useCallback((nextTheme) => {
+    themeRef.current = nextTheme;
+    setTheme(nextTheme);
   }, []);
 
   const restartGame = useCallback(() => {
@@ -264,6 +298,62 @@ export default function ArithmeticFlyCollectGame() {
   }, [setGameStatus]);
 
   const drawBackground = useCallback((ctx) => {
+    if (themeRef.current === "doodle") {
+      ctx.fillStyle = "#fff1c9";
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+      ctx.fillStyle = "#f6d55c";
+      ctx.beginPath();
+      ctx.arc(WIDTH - 82, 112, 28, 0, Math.PI * 2);
+      ctx.fill();
+      roughLine(ctx, WIDTH - 82, 62, WIDTH - 82, 34, "#f6d55c", 5);
+      roughLine(ctx, WIDTH - 126, 82, WIDTH - 154, 62, "#f6d55c", 5);
+      roughLine(ctx, WIDTH - 40, 84, WIDTH - 14, 66, "#f6d55c", 5);
+      drawPixelText(ctx, ":)", WIDTH - 96, 98, 18, "left", "#111111");
+
+      ctx.fillStyle = "#ff8a8a";
+      ctx.fillRect(28, 330, 120, 190);
+      ctx.fillStyle = "#ffd166";
+      ctx.fillRect(WIDTH - 154, 286, 126, 232);
+      ctx.strokeStyle = "#111111";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(28, 330, 120, 190);
+      ctx.strokeRect(WIDTH - 154, 286, 126, 232);
+
+      for (let i = 0; i < 5; i += 1) {
+        ctx.strokeRect(48 + (i % 2) * 46, 354 + Math.floor(i / 2) * 54, 22, 30);
+        ctx.strokeRect(WIDTH - 134 + (i % 2) * 48, 314 + Math.floor(i / 2) * 56, 22, 30);
+      }
+
+      ctx.fillStyle = "#70c36b";
+      for (let i = 0; i < 18; i += 1) {
+        ctx.beginPath();
+        ctx.arc(210 + Math.sin(i) * 28, 344 + Math.cos(i * 1.7) * 30, 24, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      roughLine(ctx, 210, 370, 210, 510, "#6b3f20", 8);
+
+      ctx.strokeStyle = "rgba(35, 35, 35, 0.38)";
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 11; i += 1) {
+        const y = 86 + ((i * 56 + scrollRef.current * 1.15) % (HEIGHT - 86));
+        roughLine(ctx, 0, y, WIDTH, y + Math.sin(i) * 8, "#444444", 2);
+      }
+
+      for (let i = 0; i < 55; i += 1) {
+        const x = (i * 83) % WIDTH;
+        const y = (i * 47 + Math.floor(scrollRef.current * 0.36)) % HEIGHT;
+        roughLine(ctx, x, y, x + 8, y + 3, i % 2 ? "#2f7fc1" : "#111111", 1);
+      }
+
+      if (flashRef.current.color && flashRef.current.time > 0) {
+        ctx.globalAlpha = clamp(flashRef.current.time / 260, 0, 0.32);
+        ctx.fillStyle = flashRef.current.color;
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+        ctx.globalAlpha = 1;
+      }
+      return;
+    }
+
     ctx.fillStyle = "#050814";
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
@@ -311,12 +401,24 @@ export default function ArithmeticFlyCollectGame() {
 
   const drawHud = useCallback(
     (ctx) => {
-      ctx.fillStyle = "#050814";
+      const doodle = themeRef.current === "doodle";
+
+      ctx.fillStyle = doodle ? "#181818" : "#050814";
       ctx.fillRect(0, 0, WIDTH, 70);
+      if (doodle) {
+        roughLine(ctx, 0, 68, WIDTH, 68, "#111111", 5);
+        drawCoin(ctx, 20, 22);
+        drawPixelText(ctx, String(scoreRef.current), 54, 20, 24, "left", "#ffffff");
+        drawPixelText(ctx, problemRef.current.text, WIDTH / 2, 16, 30, "center", "#ffe66d");
+        drawPixelText(ctx, "☰", WIDTH - 42, 16, 28, "left", "#ffffff");
+        return;
+      }
+
       ctx.strokeStyle = "#00e5ff";
       ctx.lineWidth = 4;
       ctx.strokeRect(0, 0, WIDTH, 70);
-      drawPixelText(ctx, `Рахунок ${scoreRef.current}`, 18, 18, 20, "left");
+      drawCoin(ctx, 20, 22);
+      drawPixelText(ctx, String(scoreRef.current), 54, 20, 24, "left");
       drawPixelText(ctx, problemRef.current.text, WIDTH / 2, 16, 30, "center", "#fff04a");
       drawPixelText(ctx, "☰", WIDTH - 42, 16, 28, "left", "#00e5ff");
     },
@@ -325,12 +427,30 @@ export default function ArithmeticFlyCollectGame() {
 
   const drawBlock = useCallback((ctx, block) => {
     const rect = getBlockRect(block);
+    const doodle = themeRef.current === "doodle";
 
     ctx.save();
     ctx.translate(Math.round(rect.x), Math.round(rect.y));
-    ctx.fillStyle = "#160532";
+    ctx.fillStyle = doodle ? "#fff6d8" : "#160532";
     ctx.fillRect(0, 0, BLOCK_WIDTH, BLOCK_HEIGHT);
-    ctx.fillStyle = block.correct ? "#00e5ff" : "#ff2bd6";
+
+    if (doodle) {
+      ctx.fillStyle = block.doodleColor;
+      ctx.globalAlpha = 0.58;
+      for (let i = 0; i < 9; i += 1) {
+        roughLine(ctx, 8, 10 + i * 5, BLOCK_WIDTH - 8, 6 + i * 6, block.doodleColor, 4);
+      }
+      ctx.globalAlpha = 1;
+      roughLine(ctx, 0, 0, BLOCK_WIDTH, 0, "#111111", 4);
+      roughLine(ctx, BLOCK_WIDTH, 0, BLOCK_WIDTH, BLOCK_HEIGHT, "#111111", 4);
+      roughLine(ctx, BLOCK_WIDTH, BLOCK_HEIGHT, 0, BLOCK_HEIGHT, "#111111", 4);
+      roughLine(ctx, 0, BLOCK_HEIGHT, 0, 0, "#111111", 4);
+      drawPixelText(ctx, String(block.value), BLOCK_WIDTH / 2, 17, 24, "center", "#111111");
+      ctx.restore();
+      return;
+    }
+
+    ctx.fillStyle = block.color;
     ctx.fillRect(0, 0, BLOCK_WIDTH, 6);
     ctx.fillRect(0, BLOCK_HEIGHT - 6, BLOCK_WIDTH, 6);
     ctx.fillRect(0, 0, 6, BLOCK_HEIGHT);
@@ -344,9 +464,33 @@ export default function ArithmeticFlyCollectGame() {
 
   const drawPlayer = useCallback((ctx) => {
     const rect = getPlayerRect(playerXRef.current, playerYRef.current);
+    const doodle = themeRef.current === "doodle";
 
     ctx.save();
     ctx.translate(Math.round(rect.x), Math.round(rect.y));
+
+    if (doodle) {
+      ctx.fillStyle = "#7cc6ff";
+      ctx.fillRect(13, 4, 20, 28);
+      ctx.fillStyle = "#ffde59";
+      ctx.fillRect(8, 20, 30, 8);
+      ctx.fillStyle = "#ff7a8a";
+      ctx.fillRect(18, 30, 10, 12);
+      roughLine(ctx, 22, 0, 10, 26, "#111111", 3);
+      roughLine(ctx, 24, 0, 38, 26, "#111111", 3);
+      roughLine(ctx, 10, 26, 36, 26, "#111111", 3);
+      roughLine(ctx, 22, 2, 22, 38, "#111111", 2);
+      ctx.fillStyle = "#111111";
+      ctx.fillRect(18, 11, 4, 4);
+      ctx.fillRect(26, 11, 4, 4);
+      if (keysRef.current.turbo) {
+        roughLine(ctx, 17, 42, 12, 56, "#ff8a00", 5);
+        roughLine(ctx, 29, 42, 34, 56, "#ff8a00", 5);
+      }
+      ctx.restore();
+      return;
+    }
+
     ctx.fillStyle = "#00e5ff";
     ctx.fillRect(18, 0, 10, 8);
     ctx.fillRect(12, 8, 22, 10);
@@ -572,9 +716,66 @@ export default function ArithmeticFlyCollectGame() {
     }
   };
 
+  const pageStyle = theme === "doodle" ? { ...styles.page, background: "#f9e8b8" } : styles.page;
+  const frameStyle =
+    theme === "doodle"
+      ? {
+          ...styles.frame,
+          border: "6px solid #111111",
+          background: "#fff1c9",
+          boxShadow: "8px 8px 0 #ff7a8a, -8px -8px 0 #4da3ff",
+        }
+      : styles.frame;
+  const legendStyle =
+    theme === "doodle"
+      ? {
+          ...styles.legend,
+          border: "6px solid #111111",
+          background: "#fff1c9",
+          color: "#111111",
+          boxShadow: "8px 8px 0 #ff7a8a, -8px -8px 0 #4da3ff",
+        }
+      : styles.legend;
+  const legendPanelStyle =
+    theme === "doodle"
+      ? {
+          ...styles.legendGrid,
+          border: "4px solid #111111",
+          background: "#fff6d8",
+          color: "#111111",
+        }
+      : styles.legendGrid;
+  const controlsPanelStyle =
+    theme === "doodle"
+      ? {
+          ...styles.controlsText,
+          border: "4px solid #111111",
+          background: "#fff6d8",
+          color: "#111111",
+        }
+      : styles.controlsText;
+  const buttonStyle =
+    theme === "doodle"
+      ? {
+          ...styles.legendButton,
+          border: "4px solid #111111",
+          background: "#ffd166",
+          color: "#111111",
+        }
+      : styles.legendButton;
+  const touchButtonStyle =
+    theme === "doodle"
+      ? {
+          ...styles.touchButton,
+          border: "4px solid #111111",
+          background: "#fff6d8",
+          color: "#111111",
+        }
+      : styles.touchButton;
+
   return (
-    <main style={styles.page}>
-      <section style={styles.frame}>
+    <main style={pageStyle}>
+      <section style={frameStyle}>
         {status === "idle" && (
           <div style={styles.marquee}>
             <div>
@@ -590,22 +791,39 @@ export default function ArithmeticFlyCollectGame() {
       </section>
 
       {legendOpen && (
-        <aside style={styles.legend} aria-label="Керування">
+        <aside style={legendStyle} aria-label="Керування">
           <div style={styles.legendActions}>
-            <button style={styles.legendButton} type="button" onClick={restartGame}>
+            <button style={buttonStyle} type="button" onClick={restartGame}>
               Спочатку
             </button>
-            <button style={styles.legendButton} type="button" onClick={resetGame}>
+            <button style={buttonStyle} type="button" onClick={resetGame}>
               Скинути
             </button>
-            <button style={styles.legendButton} type="button" onClick={closeLegend}>
+            <button style={buttonStyle} type="button" onClick={closeLegend}>
               Закрити ×
             </button>
           </div>
 
           <h2 style={styles.legendTitle}>Керування</h2>
 
-          <div style={styles.legendGrid}>
+          <div style={styles.themeSwitch}>
+            <button
+              style={theme === "arcade" ? { ...buttonStyle, opacity: 1 } : { ...buttonStyle, opacity: 0.58 }}
+              type="button"
+              onClick={() => changeTheme("arcade")}
+            >
+              Аркада
+            </button>
+            <button
+              style={theme === "doodle" ? { ...buttonStyle, opacity: 1 } : { ...buttonStyle, opacity: 0.58 }}
+              type="button"
+              onClick={() => changeTheme("doodle")}
+            >
+              Дудл
+            </button>
+          </div>
+
+          <div style={legendPanelStyle}>
             <span>Рахунок</span>
             <strong>{score}</strong>
             <span>Рівень</span>
@@ -622,7 +840,7 @@ export default function ArithmeticFlyCollectGame() {
             <strong>{speed.toFixed(2)}×</strong>
           </div>
 
-          <div style={styles.controlsText}>
+          <div style={controlsPanelStyle}>
             <p>← / A: вліво</p>
             <p>→ / D: вправо</p>
             <p>↑: Турбо</p>
@@ -633,7 +851,7 @@ export default function ArithmeticFlyCollectGame() {
 
           <div style={styles.touchGrid}>
             <button
-              style={styles.touchButton}
+              style={touchButtonStyle}
               type="button"
               onPointerDown={() => touch("left", true)}
               onPointerUp={() => touch("left", false)}
@@ -643,7 +861,7 @@ export default function ArithmeticFlyCollectGame() {
               ←
             </button>
             <button
-              style={styles.touchButton}
+              style={touchButtonStyle}
               type="button"
               onPointerDown={() => touch("right", true)}
               onPointerUp={() => touch("right", false)}
@@ -653,7 +871,7 @@ export default function ArithmeticFlyCollectGame() {
               →
             </button>
             <button
-              style={styles.touchButton}
+              style={touchButtonStyle}
               type="button"
               onPointerDown={() => touch("turbo", true)}
               onPointerUp={() => touch("turbo", false)}
@@ -663,7 +881,7 @@ export default function ArithmeticFlyCollectGame() {
               Турбо
             </button>
             <button
-              style={styles.touchButton}
+              style={touchButtonStyle}
               type="button"
               onPointerDown={() => touch("brake", true)}
               onPointerUp={() => touch("brake", false)}
@@ -753,9 +971,15 @@ const styles = {
   },
   legendTitle: {
     margin: "0 0 14px",
-    color: "#ffffff",
+    color: "inherit",
     fontSize: "26px",
     textTransform: "uppercase",
+  },
+  themeSwitch: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "10px",
+    marginBottom: "16px",
   },
   legendGrid: {
     display: "grid",
