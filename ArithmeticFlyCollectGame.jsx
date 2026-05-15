@@ -5,6 +5,8 @@ import {
   gameStartSound,
   initAudio,
   levelUpSound,
+  startBackgroundMusic,
+  stopBackgroundMusic,
   wrongAnswerSound,
 } from "./src/sfx.js";
 
@@ -22,6 +24,11 @@ const DOODLE_ANSWER_COLORS = ["#4da3ff", "#ff7a8a"];
 const MAX_HEALTH = 10;
 const COIN_SIZE = 24;
 const RECORD_KEY = "math-flight-arcade-record";
+const MELODIES = [
+  { id: "sunny", label: "Сонячний чіп" },
+  { id: "orbit", label: "Орбітальний марш" },
+  { id: "doodle", label: "Дудл-блюз" },
+];
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -149,15 +156,21 @@ function roughLine(ctx, x1, y1, x2, y2, color = "#111111", width = 3) {
 }
 
 function drawCoin(ctx, x, y) {
+  ctx.fillStyle = "#7a3f00";
+  ctx.fillRect(x + 6, y, 16, 4);
+  ctx.fillRect(x + 2, y + 4, 24, 4);
+  ctx.fillRect(x, y + 8, 28, 12);
+  ctx.fillRect(x + 2, y + 20, 24, 4);
+  ctx.fillRect(x + 6, y + 24, 16, 4);
   ctx.fillStyle = "#fff04a";
-  ctx.fillRect(x + 4, y, 16, 4);
-  ctx.fillRect(x, y + 4, 24, 16);
-  ctx.fillRect(x + 4, y + 20, 16, 4);
-  ctx.fillStyle = "#ff9f1a";
-  ctx.fillRect(x + 4, y + 4, 4, 16);
-  ctx.fillRect(x + 16, y + 4, 4, 16);
+  ctx.fillRect(x + 8, y + 4, 12, 4);
+  ctx.fillRect(x + 4, y + 8, 20, 12);
+  ctx.fillRect(x + 8, y + 20, 12, 4);
+  ctx.fillStyle = "#ffb000";
+  ctx.fillRect(x + 8, y + 8, 4, 12);
+  ctx.fillRect(x + 17, y + 8, 4, 12);
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(x + 8, y + 5, 6, 3);
+  ctx.fillRect(x + 10, y + 6, 6, 3);
 }
 
 function drawBonusCoin(ctx, x, y, doodle = false) {
@@ -183,32 +196,40 @@ function drawHeart(ctx, x, y, halfUnits, doodle = false) {
   const fill = doodle ? "#ff5d73" : "#ff1744";
   const empty = doodle ? "#fff6d8" : "#1b1f35";
   const stroke = doodle ? "#111111" : "#ffffff";
+  const cells = ["0110110", "1111111", "1111111", "0111110", "0011100", "0001000"];
+  const size = 4;
 
-  ctx.fillStyle = empty;
-  ctx.fillRect(x + 4, y + 6, 24, 18);
-  ctx.fillStyle = fill;
-  if (halfUnits > 0) {
-    ctx.fillRect(x + 4, y + 6, halfUnits === 1 ? 12 : 24, 18);
-  }
+  cells.forEach((row, rowIndex) => {
+    [...row].forEach((cell, colIndex) => {
+      if (cell !== "1") {
+        return;
+      }
+
+      const leftHalf = colIndex < 4;
+      const shouldFill = halfUnits === 2 || (halfUnits === 1 && leftHalf);
+      ctx.fillStyle = shouldFill ? fill : empty;
+      ctx.fillRect(x + colIndex * size + 2, y + rowIndex * size + 4, size, size);
+    });
+  });
 
   if (doodle) {
-    roughLine(ctx, x + 4, y + 10, x + 10, y + 4, stroke, 2);
-    roughLine(ctx, x + 10, y + 4, x + 16, y + 10, stroke, 2);
-    roughLine(ctx, x + 16, y + 10, x + 22, y + 4, stroke, 2);
-    roughLine(ctx, x + 22, y + 4, x + 28, y + 10, stroke, 2);
-    roughLine(ctx, x + 28, y + 10, x + 16, y + 28, stroke, 2);
-    roughLine(ctx, x + 16, y + 28, x + 4, y + 10, stroke, 2);
+    roughLine(ctx, x + 4, y + 8, x + 10, y + 4, stroke, 2);
+    roughLine(ctx, x + 10, y + 4, x + 16, y + 8, stroke, 2);
+    roughLine(ctx, x + 16, y + 8, x + 22, y + 4, stroke, 2);
+    roughLine(ctx, x + 22, y + 4, x + 28, y + 8, stroke, 2);
+    roughLine(ctx, x + 28, y + 8, x + 16, y + 28, stroke, 2);
+    roughLine(ctx, x + 16, y + 28, x + 4, y + 8, stroke, 2);
     return;
   }
 
   ctx.fillStyle = stroke;
-  ctx.fillRect(x + 8, y + 2, 8, 4);
-  ctx.fillRect(x + 20, y + 2, 8, 4);
-  ctx.fillRect(x + 4, y + 6, 4, 10);
-  ctx.fillRect(x + 28, y + 6, 4, 10);
-  ctx.fillRect(x + 8, y + 24, 4, 4);
-  ctx.fillRect(x + 24, y + 24, 4, 4);
-  ctx.fillRect(x + 12, y + 28, 12, 4);
+  ctx.fillRect(x + 6, y + 4, 4, 4);
+  ctx.fillRect(x + 18, y + 4, 4, 4);
+  ctx.fillRect(x + 2, y + 8, 4, 8);
+  ctx.fillRect(x + 30, y + 8, 4, 8);
+  ctx.fillRect(x + 6, y + 24, 4, 4);
+  ctx.fillRect(x + 26, y + 24, 4, 4);
+  ctx.fillRect(x + 10, y + 28, 16, 4);
 }
 
 export default function ArithmeticFlyCollectGame() {
@@ -239,6 +260,7 @@ export default function ArithmeticFlyCollectGame() {
   const flashRef = useRef({ color: null, time: 0 });
   const scrollRef = useRef(0);
   const themeRef = useRef("arcade");
+  const melodyRef = useRef("sunny");
   const recordRef = useRef(0);
   const finalScoreRef = useRef(0);
   const newRecordRef = useRef(false);
@@ -246,6 +268,7 @@ export default function ArithmeticFlyCollectGame() {
   const [status, setStatus] = useState("idle");
   const [legendOpen, setLegendOpen] = useState(false);
   const [theme, setTheme] = useState("arcade");
+  const [melody, setMelody] = useState("sunny");
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(MAX_HEALTH);
   const [streak, setStreak] = useState(0);
@@ -292,7 +315,18 @@ export default function ArithmeticFlyCollectGame() {
     setTheme(nextTheme);
   }, []);
 
+  const changeMelody = useCallback((nextMelody) => {
+    initAudio();
+    buttonClickSound();
+    melodyRef.current = nextMelody;
+    setMelody(nextMelody);
+    if (statusRef.current === "running") {
+      startBackgroundMusic(nextMelody);
+    }
+  }, []);
+
   const finishGame = useCallback(() => {
+    stopBackgroundMusic();
     const score = scoreRef.current;
     const isRecord = score > recordRef.current;
 
@@ -313,6 +347,7 @@ export default function ArithmeticFlyCollectGame() {
   const restartGame = useCallback(() => {
     initAudio();
     gameStartSound();
+    startBackgroundMusic(melodyRef.current);
     scoreRef.current = 0;
     livesRef.current = MAX_HEALTH;
     streakRef.current = 0;
@@ -339,6 +374,7 @@ export default function ArithmeticFlyCollectGame() {
   const resetGame = useCallback(() => {
     initAudio();
     buttonClickSound();
+    stopBackgroundMusic();
     scoreRef.current = 0;
     livesRef.current = MAX_HEALTH;
     streakRef.current = 0;
@@ -411,6 +447,7 @@ export default function ArithmeticFlyCollectGame() {
 
   const pauseGame = useCallback(() => {
     if (statusRef.current === "running") {
+      stopBackgroundMusic();
       setGameStatus("paused");
     }
   }, [setGameStatus]);
@@ -418,6 +455,7 @@ export default function ArithmeticFlyCollectGame() {
   const resumeGame = useCallback(() => {
     if (statusRef.current === "paused") {
       lastTimeRef.current = 0;
+      startBackgroundMusic(melodyRef.current);
       setGameStatus("running");
     }
   }, [setGameStatus]);
@@ -426,6 +464,7 @@ export default function ArithmeticFlyCollectGame() {
     initAudio();
     buttonClickSound();
     if (statusRef.current === "running") {
+      stopBackgroundMusic();
       setGameStatus("paused");
     }
     setLegendOpen(true);
@@ -437,6 +476,7 @@ export default function ArithmeticFlyCollectGame() {
     setLegendOpen(false);
     if (statusRef.current === "paused") {
       lastTimeRef.current = 0;
+      startBackgroundMusic(melodyRef.current);
       setGameStatus("running");
     }
   }, [setGameStatus]);
@@ -917,6 +957,7 @@ export default function ArithmeticFlyCollectGame() {
     initAudio();
     if (active && statusRef.current === "paused") {
       lastTimeRef.current = 0;
+      startBackgroundMusic(melodyRef.current);
       setGameStatus("running");
     }
     if (active) {
@@ -1051,6 +1092,20 @@ export default function ArithmeticFlyCollectGame() {
             >
               Дудл
             </button>
+          </div>
+
+          <div style={styles.melodySwitch}>
+            <span style={styles.legendSubhead}>Мелодія</span>
+            {MELODIES.map((item) => (
+              <button
+                key={item.id}
+                style={melody === item.id ? { ...buttonStyle, opacity: 1 } : { ...buttonStyle, opacity: 0.58 }}
+                type="button"
+                onClick={() => changeMelody(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
 
           <div style={legendPanelStyle}>
@@ -1212,6 +1267,17 @@ const styles = {
     gridTemplateColumns: "1fr 1fr",
     gap: "10px",
     marginBottom: "16px",
+  },
+  melodySwitch: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: "10px",
+    marginBottom: "16px",
+  },
+  legendSubhead: {
+    fontSize: "15px",
+    fontWeight: 900,
+    textTransform: "uppercase",
   },
   legendGrid: {
     display: "grid",
